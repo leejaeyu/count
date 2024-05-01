@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>네이버 블로그 방문자 수 그래프</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      /* 캔버스 크기 조절을 위한 CSS */
+      #myChart {
+        max-width: 800px; /* 최대 너비 설정 */
+        max-height: 600px; /* 최대 높이 설정 */
+        width: 100%; /* 너비 100% 설정 */
+        height: auto; /* 높이 자동 설정 */
+      }
+      /* 표 스타일 */
+      #visitorTable {
+        margin-top: 20px;
+        border-collapse: collapse;
+        width: 100%;
+      }
+      #visitorTable th,
+      #visitorTable td {
+        border: 1px solid #dddddd;
+        text-align: center;
+        padding: 8px;
+      }
+      #visitorTable th {
+        background-color: #f2f2f2;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="myChart"></canvas>
+    <table id="visitorTable">
+      <thead>
+        <tr>
+          <th>블로그 계정</th>
+          <th>오늘 방문자 수</th>
+        </tr>
+      </thead>
+      <tbody id="visitorTableBody"></tbody>
+    </table>
+    <script>
+      // 네이버 블로그 계정 목록
+      var naverBlogIds = [
+        "ljy06027",
+        "dynmo279",
+        "bruml600",
+        "coffer662",
+        "euthnsi477",
+        "cnnot946",
+        "angel1004sms",
+        // 필요한 만큼 계정을 추가하세요
+      ];
+
+      // 최근 4일간의 방문자 수를 저장할 객체
+      var recentVisitorData = {};
+
+      // JSON 데이터 저장 함수
+      function saveRecentVisitorData() {
+        localStorage.setItem(
+          "recentVisitorData",
+          JSON.stringify(recentVisitorData)
+        );
+      }
+
+      // JSON 데이터 로드 함수
+      function loadRecentVisitorData() {
+        var jsonData = localStorage.getItem("recentVisitorData");
+        if (jsonData) {
+          recentVisitorData = JSON.parse(jsonData);
+        }
+      }
+
+      // XML을 가져오고 그래프를 업데이트하는 함수
+      function updateGraph() {
+        // Promise.all로 모든 블로그 계정의 데이터 가져오기
+        Promise.all(
+          naverBlogIds.map(function (blogId) {
+            var xmlUrl =
+              "https://blog.naver.com/NVisitorgp4Ajax.nhn?blogId=" + blogId;
+            return fetch(xmlUrl)
+              .then((response) => response.text())
+              .then((xmlString) => {
+                // XML 파싱
+                var parser = new DOMParser();
+                var xmlDoc = parser.parseFromString(xmlString, "text/xml");
+
+                // <visitorcnt> 요소 선택
+                var visitorCnts = xmlDoc.getElementsByTagName("visitorcnt");
+
+                // 최근 방문자 수 가져오기
+                var latestVisitor = visitorCnts[visitorCnts.length - 1];
+                var latestVisitorCount = parseInt(
+                  latestVisitor.getAttribute("cnt")
+                );
+
+                // 최근 방문자 수를 저장
+                recentVisitorData[blogId] = latestVisitorCount;
+
+                // 표에 추가
+                var tableRow = document.createElement("tr");
+                tableRow.innerHTML =
+                  "<td>" + blogId + "</td><td>" + latestVisitorCount + "</td>";
+                document
+                  .getElementById("visitorTableBody")
+                  .appendChild(tableRow);
+              })
+              .catch((error) => console.error("Error fetching XML:", error));
+          })
+        ).then(() => {
+          // 방문자 수를 크기 순으로 정렬하여 표시
+          sortAndDisplayTable();
+          // 최신 데이터로 차트 업데이트
+          updateChart();
+        });
+      }
+
+      // 표를 방문자 수의 크기가 큰 순서로 정렬하고 표시하는 함수
+      function sortAndDisplayTable() {
+        var tableBody = document.getElementById("visitorTableBody");
+        var rows = Array.from(tableBody.children);
+        rows.sort((a, b) => {
+          var countA = parseInt(a.children[1].innerText);
+          var countB = parseInt(b.children[1].innerText);
+          return countB - countA; // 내림차순 정렬
+        });
+        rows.forEach((row) => tableBody.appendChild(row));
+      }
+
+      // 그래프 업데이트 함수
+      function updateChart() {
+        var ctx = document.getElementById("myChart").getContext("2d");
+        var labels = Object.keys(recentVisitorData);
+
+        var datasets = [
+          {
+            label: "오늘 방문자 수",
+            data: labels.map((blogId) => recentVisitorData[blogId]),
+            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            borderColor: "rgba(255, 99, 132, 1)",
+            borderWidth: 1,
+          },
+        ];
+
+        var myChart = new Chart(ctx, {
+          type: "bar", // 막대 차트로 설정
+          data: {
+            labels: labels, // 블로그 계정을 라벨로 사용
+            datasets: datasets,
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+              },
+            },
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+          },
+        });
+      }
+
+      // 페이지 로드시 그래프 업데이트 및 데이터 로드
+      loadRecentVisitorData();
+      updateGraph();
+    </script>
+  </body>
+</html>
